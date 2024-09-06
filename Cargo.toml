@@ -1,0 +1,13 @@
+[package]
+name = "your_python_is_slow"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "your_python_is_slow"
+crate-type = ["cdylib"]
+
+[dependencies]
+numpy = "0.21.0"
+pyo3 = { version = "0.21", features = ["extension-module"] }
