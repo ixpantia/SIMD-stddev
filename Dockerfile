@@ -17,7 +17,7 @@ RUN mkdir slow_python
 COPY ./requirements.txt /root/slow_python/requirements.txt
 WORKDIR /root/slow_python
 
-ENV RUSTFLAGS "-C target-cpu=native -C target-feature=+avx2,+avx,+sse2,+avx512f,+avx512bw,+avx512vl"
+ENV RUSTFLAGS "-C target-cpu=native"
 ENV VIRTUAL_ENV "/root/slow_python/venv"
 RUN python3 -m venv venv && \
     ./venv/bin/pip install -r requirements.txt && \

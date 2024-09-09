@@ -1,8 +1,7 @@
 #![feature(stdarch_x86_avx512)]
 
-use pyo3::{ wrap_pyfunction, prelude::*, };
-use numpy::{PyArray1, ndarray::ArrayView1, PyArrayMethods};
-
+use numpy::{ndarray::ArrayView1, PyArray1, PyArrayMethods};
+use pyo3::{prelude::*, wrap_pyfunction};
 
 fn fast_standard_deviation_internal_manual_simd_avx512(array_view: ArrayView1<f64>) -> f64 {
     use core::arch::x86_64::*;
@@ -26,10 +25,10 @@ fn fast_standard_deviation_internal_manual_simd_avx512(array_view: ArrayView1<f6
             sum_d = _mm512_add_pd(sum_d, _mm512_loadu_pd(ptr.offset(24)));
             ptr = ptr.offset(32);
         }
-        _mm512_reduce_add_pd(sum_a) +
-            _mm512_reduce_add_pd(sum_b) +
-            _mm512_reduce_add_pd(sum_c) +
-            _mm512_reduce_add_pd(sum_d)
+        _mm512_reduce_add_pd(sum_a)
+            + _mm512_reduce_add_pd(sum_b)
+            + _mm512_reduce_add_pd(sum_c)
+            + _mm512_reduce_add_pd(sum_d)
     };
 
     // The mean
@@ -48,7 +47,6 @@ fn fast_standard_deviation_internal_manual_simd_avx512(array_view: ArrayView1<f6
         let mut diff_c: __m512d;
         let mut diff_d: __m512d;
         while ptr < end {
-
             diff_a = _mm512_sub_pd(_mm512_loadu_pd(ptr), mean);
             sum_a = _mm512_add_pd(sum_a, _mm512_mul_pd(diff_a, diff_a));
 
@@ -63,10 +61,10 @@ fn fast_standard_deviation_internal_manual_simd_avx512(array_view: ArrayView1<f6
 
             ptr = ptr.offset(32);
         }
-        _mm512_reduce_add_pd(sum_a) +
-            _mm512_reduce_add_pd(sum_b) +
-            _mm512_reduce_add_pd(sum_c) +
-            _mm512_reduce_add_pd(sum_d)
+        _mm512_reduce_add_pd(sum_a)
+            + _mm512_reduce_add_pd(sum_b)
+            + _mm512_reduce_add_pd(sum_c)
+            + _mm512_reduce_add_pd(sum_d)
     };
 
     (square_diff_sum / len_f64).sqrt()
@@ -81,19 +79,24 @@ fn fast_standard_deviation_internal_manual_simd_avx2(array_view: ArrayView1<f64>
 
     // Sum the elements of the array
     let sum = unsafe {
+        // Take a pointer to the start of the array
         let mut ptr = array_view.as_ptr();
+        // Get a pointer to the end of the array
         let end = ptr.add(len);
+        // Declare the sums
         let mut sum_a: __m256d = _mm256_set1_pd(0.0);
         let mut sum_b: __m256d = _mm256_set1_pd(0.0);
         let mut sum_c: __m256d = _mm256_set1_pd(0.0);
         let mut sum_d: __m256d = _mm256_set1_pd(0.0);
         while ptr < end {
+            // Add the values into the sums
             sum_a = _mm256_add_pd(sum_a, _mm256_loadu_pd(ptr));
             sum_b = _mm256_add_pd(sum_b, _mm256_loadu_pd(ptr.offset(4)));
             sum_c = _mm256_add_pd(sum_c, _mm256_loadu_pd(ptr.offset(8)));
             sum_d = _mm256_add_pd(sum_d, _mm256_loadu_pd(ptr.offset(12)));
             ptr = ptr.offset(16);
         }
+        // Sum the values into a single value and return
         sum_a = _mm256_add_pd(sum_a, sum_b);
         sum_c = _mm256_add_pd(sum_c, sum_d);
 
@@ -107,9 +110,11 @@ fn fast_standard_deviation_internal_manual_simd_avx2(array_view: ArrayView1<f64>
     let mean = sum / len_f64;
 
     let square_diff_sum = unsafe {
+        // Declare the mean as a 4 lane f64
         let mean = _mm256_set1_pd(mean);
         let mut ptr = array_view.as_ptr();
         let end = ptr.add(len);
+        // Declare the sums and the differences
         let mut sum_a: __m256d = _mm256_set1_pd(0.0);
         let mut sum_b: __m256d = _mm256_set1_pd(0.0);
         let mut sum_c: __m256d = _mm256_set1_pd(0.0);
@@ -119,7 +124,8 @@ fn fast_standard_deviation_internal_manual_simd_avx2(array_view: ArrayView1<f64>
         let mut diff_c: __m256d;
         let mut diff_d: __m256d;
         while ptr < end {
-
+            // 1. Get the diff of 4 values with respect to the mean
+            // 2. Add the square to the sum
             diff_a = _mm256_sub_pd(_mm256_loadu_pd(ptr), mean);
             sum_a = _mm256_add_pd(sum_a, _mm256_mul_pd(diff_a, diff_a));
 
@@ -134,6 +140,7 @@ fn fast_standard_deviation_internal_manual_simd_avx2(array_view: ArrayView1<f64>
 
             ptr = ptr.offset(16);
         }
+        // Reduce the sums to a single value
         sum_a = _mm256_add_pd(sum_a, sum_b);
         sum_c = _mm256_add_pd(sum_c, sum_d);
 
@@ -147,7 +154,6 @@ fn fast_standard_deviation_internal_manual_simd_avx2(array_view: ArrayView1<f64>
 }
 
 fn fast_standard_deviation_internal(array_view: ArrayView1<f64>) -> f64 {
-
     // Number of elements
     let len = array_view.len() as f64;
 
@@ -168,7 +174,9 @@ fn fast_standard_deviation_avx512(arr: &Bound<'_, PyArray1<f64>>) -> PyResult<f6
     let array_view: ArrayView1<f64> = unsafe { arr.as_array() };
 
     // Ok(fast_standard_deviation_internal_manual_simd(array_view))
-    Ok(fast_standard_deviation_internal_manual_simd_avx512(array_view))
+    Ok(fast_standard_deviation_internal_manual_simd_avx512(
+        array_view,
+    ))
 }
 
 #[pyfunction]
@@ -177,7 +185,9 @@ fn fast_standard_deviation_avx2(arr: &Bound<'_, PyArray1<f64>>) -> PyResult<f64>
     let array_view: ArrayView1<f64> = unsafe { arr.as_array() };
 
     // Ok(fast_standard_deviation_internal_manual_simd(array_view))
-    Ok(fast_standard_deviation_internal_manual_simd_avx2(array_view))
+    Ok(fast_standard_deviation_internal_manual_simd_avx2(
+        array_view,
+    ))
 }
 
 #[pyfunction]
@@ -196,5 +206,3 @@ fn your_python_is_slow(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(fast_standard_deviation_avx512, m)?)?;
     Ok(())
 }
-
-
